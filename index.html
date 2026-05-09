@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Dashboard Scentia PAS – Carrefour Argentina</title>
+<meta name="description" content="Análisis de performance de Lácteos Refrigerados y Congelados vs mercado total">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --bg:#0b0e1a;--bg2:#111427;--bg3:#181c30;--card:#1a1e32;--card2:#1f2440;
+  --border:#2a2f50;--border2:#353b60;
+  --indigo:#6366f1;--indigo2:#818cf8;--cyan:#06b6d4;--cyan2:#22d3ee;
+  --green:#10b981;--green2:#34d399;--yellow:#f59e0b;--yellow2:#fbbf24;
+  --red:#ef4444;--red2:#f87171;--orange:#f97316;
+  --txt:#f1f5f9;--txt2:#94a3b8;--txt3:#64748b;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --glow-i:0 0 20px rgba(99,102,241,.25);
+  --radius:12px;--radius2:8px;
+  font-family:'Inter',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-size:14px;line-height:1.5}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,0.02)}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.3)}
+
+/* UPLOAD */
+#upload-screen{
+  position:fixed;inset:0;background:var(--bg);z-index:1000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;
+  background:radial-gradient(ellipse at 30% 20%,rgba(99,102,241,.15) 0%,transparent 60%),
+             radial-gradient(ellipse at 70% 80%,rgba(6,182,212,.1) 0%,transparent 60%),var(--bg);
+}
+.upload-logo{font-size:36px;font-weight:800;letter-spacing:-1px}
+.upload-logo span{background:linear-gradient(135deg,var(--indigo2),var(--cyan2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.upload-subtitle{color:var(--txt2);font-size:15px;text-align:center;max-width:420px}
+#drop-zone{
+  width:440px;border:2px dashed var(--border2);border-radius:16px;
+  padding:48px 32px;text-align:center;cursor:pointer;
+  background:var(--card);transition:all .3s;position:relative;overflow:hidden;
+}
+#drop-zone::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(99,102,241,.05),rgba(6,182,212,.05));
+  opacity:0;transition:opacity .3s;
+}
+#drop-zone:hover,#drop-zone.drag-over{
+  border-color:var(--indigo);box-shadow:var(--glow-i);transform:translateY(-2px);
+}
+#drop-zone:hover::before,#drop-zone.drag-over::before{opacity:1}
+.drop-icon{font-size:48px;margin-bottom:16px;display:block}
+.drop-title{font-size:18px;font-weight:600;margin-bottom:8px}
+.drop-sub{color:var(--txt2);font-size:13px}
+#file-input{display:none}
+.upload-btn{
+  display:inline-block;margin-top:16px;padding:10px 24px;
+  background:linear-gradient(135deg,var(--indigo),var(--cyan));
+  border-radius:8px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s;
+  border:none;font-size:14px;
+}
+.upload-btn:hover{opacity:.9;transform:translateY(-1px)}
+#upload-progress{display:none;flex-direction:column;align-items:center;gap:12px;color:var(--txt2)}
+.spinner{width:40px;height:40px;border:3px solid var(--border2);border-top-color:var(--indigo);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* MAIN LAYOUT */
+#app{display:none;flex-direction:column;min-height:100vh}
+#header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:60px;background:var(--bg2);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;flex-shrink:0;
+}
+.h-logo{font-weight:800;font-size:18px;letter-spacing:-0.5px}
+.h-logo span{background:linear-gradient(135deg,var(--indigo2),var(--cyan2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.h-meta{color:var(--txt2);font-size:12px;text-align:right}
+.h-meta strong{color:var(--txt);display:block;font-size:13px}
+.h-actions{display:flex;gap:8px;align-items:center}
+.btn{padding:7px 16px;border-radius:var(--radius2);border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;font-family:inherit}
+.btn-ghost{background:transparent;color:var(--txt2);border:1px solid var(--border2)}
+.btn-ghost:hover{background:var(--card);color:var(--txt)}
+.btn-primary{background:linear-gradient(135deg,var(--indigo),var(--cyan));color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-sm{padding:5px 12px;font-size:12px}
+
+#body{display:flex;flex:1}
+
+/* SIDEBAR */
+#sidebar{
+  width:220px;background:var(--bg2);border-right:1px solid var(--border);
+  padding:20px 16px;display:flex;flex-direction:column;gap:20px;
+  position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto;flex-shrink:0;
+}
+.filter-group label{display:block;font-size:11px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.filter-group select, .filter-group input{
+  width:100%;background:var(--card);border:1px solid var(--border2);color:var(--txt);
+  padding:8px 10px;border-radius:var(--radius2);font-size:13px;font-family:inherit;
+}
+.filter-group select{
+  cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:calc(100% - 8px) center;background-size:12px;
+}
+.filter-group select:focus, .filter-group input:focus{outline:none;border-color:var(--indigo)}
+.sidebar-divider{height:1px;background:var(--border);margin:-4px 0}
+.sidebar-label{font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+.upload-new-btn{
+  margin-top:auto;padding:10px;text-align:center;background:var(--card);border:1px dashed var(--border2);
+  border-radius:var(--radius2);color:var(--txt2);cursor:pointer;font-size:12px;transition:all .2s;
+}
+.upload-new-btn:hover{border-color:var(--indigo);color:var(--indigo)}
+
+/* MAIN */
+#main{flex:1;padding:24px;display:flex;flex-direction:column;gap:24px}
+
+/* CARDS EJECUTIVAS */
+.cards-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+.exec-card{
+  background:rgba(255,255,255,0.03);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.1);border-radius:var(--radius);
+  padding:20px;position:relative;overflow:hidden;transition:all .3s;
+}
+.exec-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--indigo),var(--cyan))}
+.exec-card:hover{transform:translateY(-4px);border-color:var(--indigo);box-shadow:var(--glow-i)}
+.exec-card.danger::before{background:linear-gradient(90deg,var(--red),var(--orange))}
+.exec-card.warning::before{background:linear-gradient(90deg,var(--yellow),var(--orange))}
+.exec-card.success::before{background:linear-gradient(90deg,var(--green),var(--cyan))}
+.card-label{font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.card-value{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1}
+.card-delta{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;margin-top:8px;padding:4px 10px;border-radius:20px}
+.card-delta.up{background:rgba(16,185,129,.15);color:var(--green2)}
+.card-delta.down{background:rgba(239,68,68,.15);color:var(--red2)}
+.card-sub{font-size:11px;color:var(--txt3);margin-top:6px}
+
+/* INSIGHT BOX */
+.global-insight{
+  background:rgba(99,102,241,0.05);border-left:4px solid var(--indigo);
+  padding:16px 24px;border-radius:var(--radius2);margin-bottom:24px;
+  font-size:14px;color:var(--txt2);line-height:1.6;display:flex;align-items:center;gap:16px;
+}
+.global-insight b{color:var(--txt)}
+.global-insight i{font-size:24px}
+.benchmark-bar{margin-top:10px;position:relative}
+.benchmark-track{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.benchmark-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--indigo),var(--cyan));transition:width .8s ease}
+.benchmark-target{position:absolute;top:-2px;height:10px;width:2px;background:var(--yellow2)}
+.benchmark-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-top:4px}
+
+/* PANELS */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+}
+.panel-title{font-size:15px;font-weight:700}
+.panel-subtitle{font-size:12px;color:var(--txt2);margin-top:2px}
+.panel-actions{display:flex;gap:8px;align-items:center}
+.search-input{
+  background:var(--bg3);border:1px solid var(--border2);color:var(--txt);
+  padding:6px 12px;border-radius:var(--radius2);font-size:12px;
+  outline:none;font-family:inherit;width:180px;transition:all .2s;
+}
+.search-input:focus{border-color:var(--indigo);box-shadow:0 0 0 2px rgba(99,102,241,0.2)}
+
+/* TABLES */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{
+  padding:10px 14px;font-size:11px;font-weight:600;color:var(--txt3);
+  text-transform:uppercase;letter-spacing:.4px;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  white-space:nowrap;cursor:pointer;user-select:none;
+}
+thead th:hover{color:var(--txt2)}
+thead th .sort-icon{margin-left:4px;opacity:.5}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--bg3)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:10px 14px;font-size:13px;white-space:nowrap}
+.td-cat{font-weight:600;color:var(--txt);max-width:200px;white-space:normal}
+.td-num{text-align:right;font-variant-numeric:tabular-nums}
+.td-center{text-align:center}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red2);border:1px solid rgba(239,68,68,.3)}
+.badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow2);border:1px solid rgba(245,158,11,.3)}
+.badge-green{background:rgba(16,185,129,.15);color:var(--green2);border:1px solid rgba(16,185,129,.3)}
+.badge-orange{background:rgba(249,115,22,.15);color:var(--orange);border:1px solid rgba(249,115,22,.3)}
+.badge-indigo{background:rgba(99,102,241,.15);color:var(--indigo2);border:1px solid rgba(99,102,241,.3)}
+.badge-critical{background:linear-gradient(135deg,rgba(239,68,68,.2),rgba(249,115,22,.2));color:var(--red2);border:1px solid rgba(239,68,68,.4);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dot-red{background:var(--red)}
+.dot-yellow{background:var(--yellow)}
+.dot-green{background:var(--green)}
+
+/* DELTA CELLS */
+.delta-pos{color:var(--green2);font-weight:600}
+.delta-neg{color:var(--red2);font-weight:600}
+.delta-neu{color:var(--txt2)}
+.bar-mini{display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-left:4px;min-width:4px}
+.bar-mini-pos{background:var(--green)}
+.bar-mini-neg{background:var(--red)}
+
+/* PROVIDER ROW EXPAND */
+.prov-row{cursor:pointer}
+.prov-row.expanded{background:rgba(99,102,241,.05)!important}
+.prov-detail{display:none;background:var(--bg3)}
+.prov-detail.open{display:table-row-group}
+.prov-detail td{padding:0}
+.prov-detail-inner{padding:12px 20px 16px 48px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.prov-cat-chip{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card2);border:1px solid var(--border);border-radius:var(--radius2);
+  padding:8px 12px;font-size:12px;
+}
+
+/* MODAL */
+#modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);
+}
+#modal-overlay.open{display:flex}
+#modal-box{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:16px;
+  width:90%;max-width:900px;max-height:85vh;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.6);
+  animation:slideUp .3s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.modal-header{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:20px 24px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.modal-title{font-size:18px;font-weight:700}
+.modal-subtitle{font-size:13px;color:var(--txt2);margin-top:4px}
+.modal-close{background:none;border:none;color:var(--txt2);cursor:pointer;font-size:20px;padding:4px;line-height:1}
+.modal-close:hover{color:var(--txt)}
+.modal-body{overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px;min-height:0}
+.insight-box{
+  background:linear-gradient(135deg,rgba(99,102,241,.1),rgba(6,182,212,.05));
+  border:1px solid rgba(99,102,241,.3);border-radius:var(--radius2);
+  padding:16px;font-size:13px;line-height:1.7;color:var(--txt2);
+}
+.insight-box strong{color:var(--txt)}
+.modal-section-title{font-size:13px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+
+/* SLIDE MODAL */
+#slide-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:600;
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px);
+}
+#slide-overlay.open{display:flex}
+#slide-box{
+  background:#fff;color:#111;border-radius:12px;
+  width:800px;max-height:90vh;overflow:auto;
+  box-shadow:0 32px 80px rgba(0,0,0,.7);animation:slideUp .3s ease;
+}
+.slide-header{
+  background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff;
+  padding:32px 40px 24px;
+}
+.slide-carrefour{font-size:11px;font-weight:700;letter-spacing:2px;opacity:.7;margin-bottom:8px;text-transform:uppercase}
+.slide-prov-name{font-size:32px;font-weight:800;letter-spacing:-1px}
+.slide-period{font-size:13px;opacity:.6;margin-top:6px}
+.slide-body{padding:32px 40px;display:flex;flex-direction:column;gap:24px}
+.slide-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.slide-kpi{background:#f8fafc;border-radius:8px;padding:16px;text-align:center}
+.slide-kpi-val{font-size:26px;font-weight:800;color:#312e81}
+.slide-kpi-lbl{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.slide-table table{width:100%;border-collapse:collapse;font-size:13px}
+.slide-table th{background:#f1f5f9;padding:8px 12px;font-weight:700;color:#334155;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.slide-table td{padding:8px 12px;border-bottom:1px solid #e2e8f0}
+.slide-footer{display:flex;justify-content:space-between;align-items:center;padding:16px 40px 24px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8}
+.slide-actions{display:flex;gap:8px;padding:0 40px 24px}
+.slide-btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit}
+.slide-btn-primary{background:#312e81;color:#fff}
+.slide-btn-secondary{background:#f1f5f9;color:#334155}
+
+/* SECTION HEADER */
+.section-title{font-size:13px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:40px;color:var(--txt3)}
+.empty-state .empty-icon{font-size:36px;margin-bottom:12px}
+
+/* TOOLTIP */
+[data-tip]{position:relative;cursor:help}
+[data-tip]::after{
+  content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--bg3);border:1px solid var(--border2);border-radius:6px;
+  padding:6px 10px;font-size:11px;color:var(--txt);white-space:nowrap;
+  pointer-events:none;opacity:0;transition:opacity .2s;z-index:999;
+}
+[data-tip]:hover::after{opacity:1}
+
+/* CRITICAL PROVIDERS */
+.critical-prov{border-left:3px solid var(--red)!important}
+.warning-prov{border-left:3px solid var(--yellow)!important}
+
+/* RESPONSIVE */
+@media(max-width:1200px){.cards-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){
+  #sidebar{display:none}
+  .cards-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+
+<body>
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div>
+    <div class="upload-logo">📊 Scentia <span>PAS Dashboard</span></div>
+    <p class="upload-subtitle" style="margin-top:8px">Lácteos Refrigerados y Congelados · Carrefour Argentina</p>
+  </div>
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <span class="drop-icon">📁</span>
+    <div class="drop-title">Subí el archivo de Scentia</div>
+    <p class="drop-sub">Arrastrá el archivo (.xlsx, .xls o .csv) aquí o hacé click para seleccionar</p>
+    <label class="upload-btn">Seleccionar archivo</label>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+  </div>
+  <div id="upload-progress">
+    <div class="spinner"></div>
+    <span id="progress-text">Procesando datos...</span>
+  </div>
+  <p style="color:var(--txt3);font-size:12px">Compatible con archivos Scentia mensuales · Filtro automático PAS</p>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <!-- HEADER -->
+  <div id="header">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div class="h-logo">📊 <span>PAS Dashboard</span></div>
+      <div id="h-period-badge" class="badge badge-indigo" style="font-size:12px"></div>
+    </div>
+    <div class="h-actions">
+      <div class="h-meta">
+        <strong id="h-archivo">—</strong>
+        <span id="h-fecha">—</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('upload-screen').style.display='flex';document.getElementById('app').style.display='none'">↑ Cambiar archivo</button>
+    </div>
+  </div>
+
+  <div id="body">
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div class="sidebar-label">Filtros</div>
+      <div class="filter-group">
+        <label>Período</label>
+        <select id="f-mes"></select>
+      </div>
+      <div class="filter-group">
+        <label>Sección</label>
+        <select id="f-seccion"><option value="PAS">PAS</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Categoría</label>
+        <input type="text" id="f-cat" list="cat-list" placeholder="Todas las categorías" autocomplete="off">
+        <datalist id="cat-list"></datalist>
+      </div>
+      <div class="filter-group">
+        <label>Proveedor</label>
+        <input type="text" id="f-prov" list="prov-list" placeholder="Todos los proveedores" autocomplete="off">
+        <datalist id="prov-list"></datalist>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div style="font-size:11px;color:var(--txt3)">
+        <div style="margin-bottom:6px;font-weight:600">Leyenda semáforo</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="dot dot-red"></span>Pierde share + crece menos</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="dot dot-yellow"></span>Una sola condición</div>
+        <div style="display:flex;align-items:center;gap:6px"><span class="dot dot-green"></span>Gana share y crece más</div>
+      </div>
+      <div class="upload-new-btn" onclick="document.getElementById('upload-screen').style.display='flex';document.getElementById('app').style.display='none'">↑ Nuevo archivo</div>
+    </div>
+
+    <!-- MAIN PANEL -->
+    <div id="main">
+      <!-- EXECUTIVE CARDS -->
+      <div>
+        <div class="section-title" style="margin-bottom:12px">Resumen Ejecutivo</div>
+        <div id="executive-insight" class="global-insight">
+           <i>💡</i>
+           <div id="insight-text">Cargando diagnóstico...</div>
+        </div>
+        <div class="cards-grid" id="cards-grid"></div>
+      </div>
+
+      <!-- VISUAL ANALYSIS -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📈 Análisis Visual de Performance</div>
+        </div>
+        <div style="padding:24px;height:300px">
+          <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+      <!-- SEMAFORO CATEGORIAS -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">🚦 Semáforo de Categorías</div>
+            <div class="panel-subtitle">Ordenado por peor situación · <span id="cat-count"></span></div>
+          </div>
+          <div class="panel-actions">
+            <input type="text" id="search-cat" class="search-input" placeholder="Buscar categoría...">
+            <button class="btn btn-ghost btn-sm" onclick="exportTableCSV('tbl-cat','categorias_pas')">↓ CSV</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="tbl-cat">
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Categoría</th>
+                <th class="td-num" data-tip="% Part del mercado en PAS">% Part RM</th>
+                <th class="td-num" data-tip="% Part de CRF en PAS">% Part CRF</th>
+                <th class="td-num" data-tip="GAP = %Part CRF - %Part RM">GAP</th>
+                <th class="td-num">Share VOL 2025</th>
+                <th class="td-num">Share VOL 2026</th>
+                <th class="td-num">Dif Share (pp)</th>
+                <th class="td-num">Prog CRF %</th>
+                <th class="td-num">Prog MDO %</th>
+                <th class="td-num">Share $ 2026</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-cat"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PROVEEDORES 85% -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">🏭 Proveedores Clave (85% del mercado)</div>
+            <div class="panel-subtitle">Hacé click en un proveedor para ver el detalle · <span id="prov-count"></span></div>
+          </div>
+          <div class="panel-actions">
+            <input type="text" id="search-prov" class="search-input" placeholder="Buscar proveedor...">
+            <button class="btn btn-ghost btn-sm" onclick="exportTableCSV('tbl-prov','proveedores_85')">↓ CSV</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="tbl-prov">
+            <thead>
+              <tr>
+                <th onclick="toggleSortProv('prov')">Proveedor <span id="sort-prov-prov"></span></th>
+                <th class="td-num" onclick="toggleSortProv('partRMMdo')">% Part MDO <span id="sort-prov-partRMMdo"></span></th>
+                <th class="td-num" onclick="toggleSortProv('partCRFMdo')">% Part CRF <span id="sort-prov-partCRFMdo"></span></th>
+                <th class="td-num" onclick="toggleSortProv('gapMdo')">GAP $ <span id="sort-prov-gapMdo"></span></th>
+                <th class="td-num" onclick="toggleSortProv('shareAnt')">Share $ 2025 <span id="sort-prov-shareAnt"></span></th>
+                <th class="td-num" onclick="toggleSortProv('shareAct')">Share $ 2026 <span id="sort-prov-shareAct"></span></th>
+                <th class="td-num" onclick="toggleSortProv('difShare')">Dif Share <span id="sort-prov-difShare"></span></th>
+                <th class="td-num" onclick="toggleSortProv('progCRF')">Prog CRF % <span id="sort-prov-progCRF"></span></th>
+                <th class="td-num" onclick="toggleSortProv('progMDO')">Prog MDO % <span id="sort-prov-progMDO"></span></th>
+                <th class="td-num" onclick="toggleSortProv('acumMDO')">% Acum MDO <span id="sort-prov-acumMDO"></span></th>
+                <th class="td-center" onclick="toggleSortProv('alertLevel')">Alerta <span id="sort-prov-alertLevel"></span></th>
+              </tr>
+            </thead>
+            <tbody id="tbody-prov"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DRILL-DOWN MODAL -->
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modal-prov-name"></div>
+        <div class="modal-subtitle" id="modal-prov-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <button class="btn btn-primary btn-sm" id="modal-slide-btn">📄 Generar Slide</button>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="insight-box" id="modal-insight"></div>
+      <div>
+        <div class="modal-section-title">Performance por Categoría</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Categoría</th>
+                <th class="td-num">Share $ 2025</th>
+                <th class="td-num">Share $ 2026</th>
+                <th class="td-num">Dif Share</th>
+                <th class="td-num">Prog CRF %</th>
+                <th class="td-num">Prog MDO %</th>
+                <th class="td-num">GAP Vol</th>
+              </tr>
+            </thead>
+            <tbody id="modal-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="modal-marcas-section" style="display:none">
+        <div class="modal-section-title">Marcas con mayor impacto</div>
+        <div id="modal-marcas"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE MODAL -->
+<div id="slide-overlay" onclick="if(event.target===this)closeSlide()">
+  <div id="slide-box">
+    <div class="slide-header">
+      <div class="slide-carrefour">Carrefour Argentina · Lácteos Refrigerados y Congelados PAS</div>
+      <div class="slide-prov-name" id="slide-prov-name"></div>
+      <div class="slide-period" id="slide-period"></div>
+    </div>
+    <div class="slide-body">
+      <div class="slide-kpi-row" id="slide-kpis"></div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Top 3 Categorías Críticas</div>
+        <div class="slide-table"><table><thead><tr><th>Categoría</th><th>Share 2025</th><th>Share 2026</th><th>Dif (pp)</th><th>Prog CRF</th><th>Prog MDO</th></tr></thead><tbody id="slide-tbody"></tbody></table></div>
+      </div>
+      <div id="slide-insight-box" style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:14px;font-size:13px;color:#92400e;line-height:1.6"></div>
+    </div>
+    <div class="slide-footer">
+      <span>Fuente: Scentia · Sección PAS</span>
+      <span id="slide-footer-date"></span>
+    </div>
+    <div class="slide-actions">
+      <button class="slide-btn slide-btn-primary" onclick="exportSlidePDF()">↓ Exportar PDF</button>
+      <button class="slide-btn slide-btn-secondary" onclick="closeSlide()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+const COL = {
+  canasta:'Canasta', cat:'Categoria', sec:'Sección', fab:'Fabricante',
+  marca:'Marca', gpo:'Grupo Economico', gpoSR:'Grupo Economico Sin Resto',
+  mes:'MES',
+  crfAnt:'$ CRF Anterior', mdoAnt:'$ MDO Anterior',
+  crfAct:'$ CRF Actual',  mdoAct:'$ MDO Actual',
+  vcrfAnt:'VOL CRF Anterior', vmdoAnt:'VOL MDO Anterior',
+  vcrfAct:'VOL CRF Actual',  vmdoAct:'VOL MDO Actual'
+};
+const OBJETIVO_SHARE = 26;
+const EXCLUIR_GPO = ['OFAB','RESTO',''];
+
+let RAW = [];           // all rows from Base sheet
+let STATE = { 
+  mes:'YTD', seccion:'PAS', cat:'', prov:'',
+  sortColProv: 'alertLevel', sortDirProv: -1 
+};
+let CURRENT_PROV = null; // for slide/modal
+
+// ─── UTILS ──────────────────────────────────────────────────────────────────
+const n = v => (typeof v==='number' && isFinite(v)) ? v : 0;
+const safeDiv = (a,b) => (b!==0 && isFinite(b) && isFinite(a)) ? a/b : 0;
+const pct = (a,b) => safeDiv(a,b)*100;
+
+function fmt(v, dec=1) {
+  if(!isFinite(v)||v===null||v===undefined) return '—';
+  return v.toLocaleString('es-AR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+function fmtM(v) { // millones
+  if(!isFinite(v)) return '—';
+  if(Math.abs(v)>=1e9) return fmt(v/1e9)+'B';
+  if(Math.abs(v)>=1e6) return fmt(v/1e6)+'M';
+  if(Math.abs(v)>=1e3) return fmt(v/1e3)+'K';
+  return fmt(v,0);
+}
+function fmtPct(v,dec=1) { return isFinite(v)?fmt(v,dec)+'%':'—'; }
+function fmtPp(v,dec=1) {
+  if(!isFinite(v)) return '—';
+  const sign = v>0?'+':'';
+  return sign+fmt(v,dec)+' pp';
+}
+function deltaClass(v) { return v>0.05?'delta-pos':v<-0.05?'delta-neg':'delta-neu'; }
+function deltaSign(v) { return v>0.05?'↑':v<-0.05?'↓':'→'; }
+function deltaSignPct(v) { return v>0?'+'+fmt(v,1)+'%':fmt(v,1)+'%'; }
+
+// ─── EXCEL PARSER ───────────────────────────────────────────────────────────
+function parseExcel(file) {
+  return new Promise((resolve,reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        if(!wb.SheetNames.includes('Base')) { reject('No se encontró la hoja "Base"'); return; }
+        const ws = wb.Sheets['Base'];
+        const rows = XLSX.utils.sheet_to_json(ws, {defval:null});
+        resolve(rows);
+      } catch(err) { reject(err.message); }
+    };
+    reader.onerror = () => reject('Error al leer el archivo');
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ─── FILTER DATA ────────────────────────────────────────────────────────────
+function getFiltered(overrideMes) {
+  const mes = overrideMes || STATE.mes;
+  return RAW.filter(r =>
+    r[COL.sec] === STATE.seccion &&
+    r[COL.mes] === mes
+  );
+}
+
+function getFilteredFull() {
+  let rows = getFiltered();
+  if(STATE.cat) rows = rows.filter(r => r[COL.cat]===STATE.cat);
+  if(STATE.prov) rows = rows.filter(r => r[COL.gpoSR]===STATE.prov);
+  return rows;
+}
+
+// ─── AGGREGATE HELPERS ──────────────────────────────────────────────────────
+function sumBy(rows, groupFn, fields) {
+  const map = {};
+  rows.forEach(r => {
+    const k = groupFn(r);
+    if(!map[k]) { map[k]={}; fields.forEach(f=>map[k][f]=0); }
+    fields.forEach(f => { map[k][f] += n(r[COL[f]])||0; });
+  });
+  return map;
+}
+
+function aggRows(rows) {
+  // sum all monetary/volume fields
+  return rows.reduce((acc,r) => {
+    acc.crfAnt += n(r[COL.crfAnt]);
+    acc.crfAct += n(r[COL.crfAct]);
+    acc.mdoAnt += n(r[COL.mdoAnt]);
+    acc.mdoAct += n(r[COL.mdoAct]);
+    acc.vcrfAnt += n(r[COL.vcrfAnt]);
+    acc.vcrfAct += n(r[COL.vcrfAct]);
+    acc.vmdoAnt += n(r[COL.vmdoAnt]);
+    acc.vmdoAct += n(r[COL.vmdoAct]);
+    return acc;
+  }, {crfAnt:0,crfAct:0,mdoAnt:0,mdoAct:0,vcrfAnt:0,vcrfAct:0,vmdoAnt:0,vmdoAct:0});
+}
+
+// ─── METRICS ENGINE ─────────────────────────────────────────────────────────
+function calcMetrics(agg, totalPAS) {
+  const shareAct  = pct(agg.crfAct, agg.mdoAct);
+  const shareAnt  = pct(agg.crfAnt, agg.mdoAnt);
+  const shareVAct = pct(agg.vcrfAct, agg.vmdoAct);
+  const shareVAnt = pct(agg.vcrfAnt, agg.vmdoAnt);
+  const progCRF   = pct(agg.crfAct - agg.crfAnt, agg.crfAnt);
+  const progMDO   = pct(agg.mdoAct - agg.mdoAnt, agg.mdoAnt);
+  const progVCRF  = pct(agg.vcrfAct - agg.vcrfAnt, agg.vcrfAnt);
+  const progVMDO  = pct(agg.vmdoAct - agg.vmdoAnt, agg.vmdoAnt);
+  const difShare  = shareAct - shareAnt;
+  const difShareV = shareVAct - shareVAnt;
+  const partRM    = totalPAS ? pct(agg.vmdoAct, totalPAS.vmdoAct) : 0;
+  const partCRF   = totalPAS ? pct(agg.vcrfAct, totalPAS.vcrfAct) : 0;
+  const gap       = partCRF - partRM;
+  const partRMMdo = totalPAS ? pct(agg.mdoAct, totalPAS.mdoAct) : 0;
+  const partCRFMdo= totalPAS ? pct(agg.crfAct, totalPAS.crfAct) : 0;
+  const gapMdo    = partCRFMdo - partRMMdo;
+  return {
+    ...agg,
+    shareAct,shareAnt,shareVAct,shareVAnt,
+    progCRF,progMDO,progVCRF,progVMDO,
+    difShare,difShareV,
+    partRM,partCRF,gap,
+    partRMMdo,partCRFMdo,gapMdo
+  };
+}
+
+function semaforo(m) {
+  const perdioShare = m.difShare < -0.2;  // >0.2pp perdido
+  const creceMenos  = m.progCRF < m.progMDO - 1; // CRF crece >1pp menos
+  if(perdioShare && creceMenos) return 'red';
+  if(perdioShare || creceMenos) return 'yellow';
+  return 'green';
+}
+
+// ─── CATEGORY ANALYSIS ──────────────────────────────────────────────────────
+function buildCategoryData(rows) {
+  const totalAgg = aggRows(rows);
+  const byCAT = {};
+  rows.forEach(r => {
+    const k = r[COL.cat]||'S/D';
+    if(!byCAT[k]) byCAT[k]=[];
+    byCAT[k].push(r);
+  });
+  return Object.entries(byCAT).map(([cat,rs]) => {
+    const agg = aggRows(rs);
+    const m = calcMetrics(agg, totalAgg);
+    const s = semaforo(m);
+    const score = s==='red'?0:s==='yellow'?1:2;
+    return { cat, ...m, semaforo:s, score };
+  }).sort((a,b) => a.score-b.score || a.difShare-b.difShare);
+}
+
+// ─── PROVIDER 85% ANALYSIS ──────────────────────────────────────────────────
+function buildProviderData(rows) {
+  const totalAgg = aggRows(rows);
+  const byPROV = {};
+  rows.forEach(r => {
+    const g = (r[COL.gpoSR]||'').trim();
+    if(!g || EXCLUIR_GPO.includes(g.toUpperCase())) return;
+    if(!byPROV[g]) byPROV[g]=[];
+    byPROV[g].push(r);
+  });
+  const provMetrics = Object.entries(byPROV).map(([prov,rs]) => {
+    const agg = aggRows(rs);
+    const m = calcMetrics(agg, totalAgg);
+    
+    // Alert Level Logic
+    const perdioShare = m.difShare < -0.3;
+    const creceMenos = m.progCRF < m.progMDO - 1;
+    const isCritical = m.partRMMdo >= 2.5 && perdioShare && creceMenos;
+    let alertLevel = 0;
+    if(isCritical && (creceMenos||perdioShare)) alertLevel = 3;
+    else if(creceMenos && perdioShare) alertLevel = 2;
+    else if(creceMenos || perdioShare) alertLevel = 1;
+
+    return { prov, rows:rs, alertLevel, ...m };
+  });
+
+  const totalMDO = provMetrics.reduce((s,p)=>s+p.mdoAct,0);
+  let acum = 0;
+  const filtered = provMetrics.map(p => {
+    p.partMDOpct = pct(p.mdoAct, totalMDO);
+    const wasUnder = acum <= 90;
+    acum += p.partMDOpct;
+    p.acumMDO = acum;
+    p.in85 = wasUnder;
+    return p;
+  }).filter(p => p.in85);
+
+  // Sorting
+  return filtered.sort((a,b) => {
+    const col = STATE.sortColProv;
+    const dir = STATE.sortDirProv;
+    let valA = a[col];
+    let valB = b[col];
+    
+    // Tie-break with mdoAct
+    if(valA === valB) return (b.mdoAct - a.mdoAct);
+    
+    if(typeof valA === 'string') return valA.localeCompare(valB) * dir;
+    return (valA - valB) * dir;
+  });
+}
+
+// ─── PROVIDER CATEGORY DRILL ─────────────────────────────────────────────────
+function buildProviderCatData(provRows) {
+  const totalAgg = aggRows(provRows);
+  const byCAT = {};
+  provRows.forEach(r => {
+    const k = r[COL.cat]||'S/D';
+    if(!byCAT[k]) byCAT[k]=[];
+    byCAT[k].push(r);
+  });
+  return Object.entries(byCAT).map(([cat,rs]) => {
+    const agg = aggRows(rs);
+    const m = calcMetrics(agg, totalAgg);
+    return { cat, ...m, semaforo: semaforo(m) };
+  }).sort((a,b) => a.difShare-b.difShare);
+}
+
+// ─── AUTO INSIGHT TEXT ───────────────────────────────────────────────────────
+function buildInsight(prov, m, catData, periodo) {
+  const dir = m.progCRF >= 0 ? 'creció' : 'cayó';
+  const mktDir = m.progMDO >= 0 ? 'creció' : 'cayó';
+  let txt = `<strong>${prov}</strong> ${dir} <strong>${deltaSignPct(m.progCRF)}</strong> en ventas CRF durante ${periodo}, `;
+  txt += `mientras el mercado ${mktDir} <strong>${deltaSignPct(m.progMDO)}</strong>. `;
+  if(m.difShare < -0.5) {
+    txt += `Esto resultó en una pérdida de <strong>${fmt(Math.abs(m.difShare),1)} pp</strong> de share. `;
+  } else if(m.difShare > 0.5) {
+    txt += `Esto resultó en una ganancia de <strong>${fmt(m.difShare,1)} pp</strong> de share. `;
+  }
+  // top worst cats
+  const worst = catData.filter(c=>c.difShare<-0.3).slice(0,3);
+  if(worst.length>0) {
+    txt += `Las categorías más críticas son: `;
+    txt += worst.map(c=>`<strong>${c.cat}</strong> (${fmtPp(c.difShare)})`).join(', ')+'. ';
+  }
+  if(m.gap < -2) {
+    txt += `⚠️ Estás <strong>subindexada ${fmt(Math.abs(m.gap),1)} pp</strong> respecto al peso del mercado.`;
+  } else if(m.gap > 2) {
+    txt += `✅ Estás <strong>sobreindexada ${fmt(m.gap,1)} pp</strong> respecto al peso del mercado.`;
+  }
+  return txt;
+}
+
+// ─── POPULATE FILTERS ────────────────────────────────────────────────────────
+function populateFilters() {
+  const meses = [...new Set(RAW.filter(r=>r[COL.sec]===STATE.seccion).map(r=>r[COL.mes]))].filter(Boolean);
+  const fMes = document.getElementById('f-mes');
+  fMes.innerHTML = '';
+  ['YTD',...meses.filter(m=>m!=='YTD')].forEach(m => {
+    fMes.innerHTML += `<option value="${m}"${m===STATE.mes?' selected':''}>${m}</option>`;
+  });
+
+  const rows = getFiltered();
+  const cats = [...new Set(rows.map(r=>r[COL.cat]))].filter(Boolean).sort();
+  const fCat = document.getElementById('cat-list');
+  fCat.innerHTML = '';
+  cats.forEach(c => fCat.innerHTML += `<option value="${c}"></option>`);
+
+  const provs = [...new Set(rows.map(r=>r[COL.gpoSR]))].filter(g=>g&&!EXCLUIR_GPO.includes(g.toUpperCase())).sort();
+  const fProv = document.getElementById('prov-list');
+  fProv.innerHTML = '';
+  provs.forEach(p => fProv.innerHTML += `<option value="${p}"></option>`);
+
+  document.getElementById('f-mes').onchange  = e => { STATE.mes=e.target.value; render(); };
+  document.getElementById('f-cat').onchange  = e => { 
+    const val = e.target.value.trim();
+    if(val === '' || cats.includes(val)) { STATE.cat = val; render(); }
+  };
+  document.getElementById('f-prov').onchange = e => { 
+    const val = e.target.value.trim();
+    if(val === '' || provs.includes(val)) { STATE.prov = val; render(); }
+  };
+}
+
+// ─── RENDER EXECUTIVE CARDS ─────────────────────────────────────────────────
+function renderCards(rows) {
+  const agg = aggRows(rows);
+  const m = calcMetrics(agg, null);
+  // share total (sin total PAS, calculamos directamente)
+  const shareAct  = pct(agg.crfAct, agg.mdoAct);
+  const shareAnt  = pct(agg.crfAnt, agg.mdoAnt);
+  const shareVAct = pct(agg.vcrfAct, agg.vmdoAct);
+  const shareVAnt = pct(agg.vcrfAnt, agg.vmdoAnt);
+  const difShare  = shareAct - shareAnt;
+  const difShareV = shareVAct - shareVAnt;
+
+  // category wins/losses
+  const allRows = getFiltered();
+  const catData = buildCategoryData(allRows);
+  const ganando = catData.filter(c=>c.difShare>0.2).length;
+  const perdiendo = catData.filter(c=>c.difShare<-0.2).length;
+
+  const pctBench = Math.min(100, pct(shareAct, OBJETIVO_SHARE));
+  const targetPos = Math.min(95, pct(OBJETIVO_SHARE, OBJETIVO_SHARE+5));
+
+  const cards = [
+    {
+      label:'Share $ CRF (YTD)',
+      value: fmtPct(shareAct,1),
+      delta: fmtPp(difShare),
+      deltaClass: difShare>=0?'up':'down',
+      sub: `Anterior: ${fmtPct(shareAnt,1)}`,
+      status: difShare>=0?'success':difShare<-1?'danger':'warning'
+    },
+    {
+      label:'Share VOL CRF (YTD)',
+      value: fmtPct(shareVAct,1),
+      delta: fmtPp(difShareV),
+      deltaClass: difShareV>=0?'up':'down',
+      sub: `Anterior: ${fmtPct(shareVAnt,1)}`,
+      status: difShareV>=0?'success':difShareV<-1?'danger':'warning'
+    },
+    {
+      label:'Variación Share $',
+      value: fmtPp(difShare),
+      delta: difShare>=0?'▲ Ganando':'▼ Perdiendo',
+      deltaClass: difShare>=0?'up':'down',
+      sub: `en pp vs año anterior`,
+      status: difShare>=0?'success':Math.abs(difShare)>1?'danger':'warning'
+    },
+    {
+      label:'Categorías',
+      value: `${ganando} / ${ganando+perdiendo}`,
+      delta: `${perdiendo} pierden share`,
+      deltaClass: perdiendo>ganando?'down':'up',
+      sub: `${ganando} ganan · ${catData.length-ganando-perdiendo} estables`,
+      status: perdiendo>ganando?'danger':'success'
+    },
+    {
+      label:'vs Objetivo 26%',
+      value: fmtPct(shareAct,1),
+      isGauge: true,
+      pctBench,
+      gapObj: shareAct - OBJETIVO_SHARE,
+      status: shareAct>=OBJETIVO_SHARE?'success':shareAct>=OBJETIVO_SHARE-2?'warning':'danger'
+    }
+  ];
+
+  const grid = document.getElementById('cards-grid');
+  grid.innerHTML = cards.map(c => `
+    <div class="exec-card ${c.status||''}">
+      <div class="card-label">${c.label}</div>
+      <div class="card-value">${c.value}</div>
+      ${c.isGauge ? `
+        <div class="benchmark-bar" style="margin-top:10px">
+          <div class="benchmark-track">
+            <div class="benchmark-fill" style="width:${c.pctBench}%"></div>
+          </div>
+          <div class="benchmark-target" style="left:${Math.min(96,pct(OBJETIVO_SHARE,OBJETIVO_SHARE+5))}%"></div>
+          <div class="benchmark-labels"><span>${fmtPct(shareAct,1)}</span><span>Obj: ${OBJETIVO_SHARE}%</span></div>
+        </div>
+        <div class="card-sub">${c.gapObj>=0?'✅ Objetivo alcanzado':'⚠️ Faltan '+fmt(Math.abs(c.gapObj),1)+' pp para el objetivo'}</div>
+      ` : `
+        <div class="card-delta ${c.deltaClass}">${c.delta}</div>
+        <div class="card-sub">${c.sub}</div>
+      `}
+    </div>
+  `).join('');
+
+  // Global Insight
+  const difS = difShare.toFixed(1);
+  const statusTxt = difShare >= 0 ? "ganancia" : "pérdida";
+  const colorTxt = difShare >= 0 ? "var(--green2)" : "var(--red2)";
+  document.getElementById('insight-text').innerHTML = `
+    En el período <b>${STATE.mes}</b>, Carrefour registra una <b>${statusTxt} de ${Math.abs(difS)} pp</b> en Share de Valor. 
+    Se detectan <b>${perdiendo} categorías</b> con performance crítica y <b>${ganando} categorías</b> logrando crecimientos por encima del mercado.
+  `;
+}
+
+// ─── RENDER CATEGORY TABLE ──────────────────────────────────────────────────
+function renderCategoryTable(catData) {
+  document.getElementById('cat-count').textContent = `${catData.length} categorías`;
+  const tbody = document.getElementById('tbody-cat');
+  if(!catData.length) { tbody.innerHTML=`<tr><td colspan="11" class="empty-state">Sin datos</td></tr>`; return; }
+  tbody.innerHTML = catData.map(c => {
+    const s = c.semaforo;
+    const badgeCls = s==='red'?'badge-red':s==='yellow'?'badge-yellow':'badge-green';
+    const sIcon = s==='red'?'🔴':s==='yellow'?'🟡':'🟢';
+    const subindex = c.partCRF < c.partRM - 1;
+    const creceMenos = c.progCRF < c.progMDO - 1;
+    return `<tr>
+      <td class="td-center"><span class="badge ${badgeCls}">${sIcon}</span></td>
+      <td class="td-cat">${c.cat}</td>
+      <td class="td-num">${fmtPct(c.partRM,1)}</td>
+      <td class="td-num">${subindex?`<span class="badge badge-red">${fmtPct(c.partCRF,1)}</span>`:fmtPct(c.partCRF,1)}</td>
+      <td class="td-num"><span class="${deltaClass(c.gap)}">${c.gap>=0?'+':''}${fmt(c.gap,1)}</span></td>
+      <td class="td-num">${fmtPct(c.shareVAnt,1)}</td>
+      <td class="td-num">${fmtPct(c.shareVAct,1)}</td>
+      <td class="td-num"><span class="${deltaClass(c.difShareV)}">${fmtPp(c.difShareV)}</span></td>
+      <td class="td-num"><span class="${deltaClass(c.progCRF)}">${deltaSignPct(c.progCRF)}</span></td>
+      <td class="td-num">${creceMenos?`<span class="badge badge-orange">${deltaSignPct(c.progMDO)}</span>`:deltaSignPct(c.progMDO)}</td>
+      <td class="td-num">${fmtPct(c.shareAct,1)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── RENDER PROVIDER TABLE ──────────────────────────────────────────────────
+function renderProviderTable(provData) {
+  document.getElementById('prov-count').textContent = `${provData.length} proveedores`;
+  const tbody = document.getElementById('tbody-prov');
+  if(!provData.length) { tbody.innerHTML=`<tr><td colspan="11" class="empty-state">Sin datos</td></tr>`; return; }
+
+  tbody.innerHTML = provData.map((p,i) => {
+    const perdioShare = p.difShare < -0.3;
+    const creceMenos = p.progCRF < p.progMDO - 1;
+    const isCritical = p.partRMMdo >= 2.5 && perdioShare && creceMenos;
+    let alertBadge = '';
+    if(isCritical && (creceMenos||perdioShare)) alertBadge = `<span class="badge badge-critical">⚠️ Crítico</span>`;
+    else if(creceMenos && perdioShare) alertBadge = `<span class="badge badge-red">🔴 Alerta</span>`;
+    else if(creceMenos || perdioShare) alertBadge = `<span class="badge badge-yellow">🟡 Atención</span>`;
+    else alertBadge = `<span class="badge badge-green">🟢 OK</span>`;
+
+    const rowClass = isCritical?'critical-prov':creceMenos&&perdioShare?'warning-prov':'';
+    return `
+      <tr class="prov-row ${rowClass}" id="prow-${i}" onclick="openModal('${p.prov.replace(/'/g,"\\'")}')">
+        <td class="td-cat" style="font-weight:700">${p.prov}${isCritical?' ⭐':''}</td>
+        <td class="td-num">${fmtPct(p.partRMMdo,1)}</td>
+        <td class="td-num">${fmtPct(p.partCRFMdo,1)}</td>
+        <td class="td-num"><span class="${deltaClass(p.gapMdo)}">${p.gapMdo>=0?'+':''}${fmt(p.gapMdo,1)}</span></td>
+        <td class="td-num">${fmtPct(p.shareAnt,1)}</td>
+        <td class="td-num">${fmtPct(p.shareAct,1)}</td>
+        <td class="td-num"><span class="${deltaClass(p.difShare)}">${fmtPp(p.difShare)}</span></td>
+        <td class="td-num"><span class="${deltaClass(p.progCRF)}">${deltaSignPct(p.progCRF)}</span></td>
+        <td class="td-num"><span class="${p.progCRF<p.progMDO-1?'delta-neg':'delta-neu'}">${deltaSignPct(p.progMDO)}</span></td>
+        <td class="td-num">${fmt(p.acumMDO,1)}%</td>
+        <td class="td-center">${alertBadge}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ─── MODAL ───────────────────────────────────────────────────────────────────
+function openModal(provName) {
+  CURRENT_PROV = provName;
+  const allRows = getFiltered();
+  const provRows = allRows.filter(r => r[COL.gpoSR]===provName);
+  if(!provRows.length) return;
+
+  const totalAgg = aggRows(allRows);
+  const provAgg  = aggRows(provRows);
+  const m = calcMetrics(provAgg, totalAgg);
+  const catData = buildProviderCatData(provRows);
+  const periodo = STATE.mes;
+
+  document.getElementById('modal-prov-name').textContent = provName;
+  document.getElementById('modal-prov-sub').textContent =
+    `${fmtPct(m.shareAct,1)} Share $ · ${fmtPct(m.partRMMdo,1)} Part MDO · Período: ${periodo}`;
+  document.getElementById('modal-insight').innerHTML = buildInsight(provName, m, catData, periodo);
+
+  // category table
+  const tbody = document.getElementById('modal-tbody');
+  tbody.innerHTML = catData.map(c => {
+    const sIcon = c.semaforo==='red'?'🔴':c.semaforo==='yellow'?'🟡':'🟢';
+    return `<tr>
+      <td class="td-center">${sIcon}</td>
+      <td class="td-cat">${c.cat}</td>
+      <td class="td-num">${fmtPct(c.shareAnt,1)}</td>
+      <td class="td-num">${fmtPct(c.shareAct,1)}</td>
+      <td class="td-num"><span class="${deltaClass(c.difShare)}">${fmtPp(c.difShare)}</span></td>
+      <td class="td-num"><span class="${deltaClass(c.progCRF)}">${deltaSignPct(c.progCRF)}</span></td>
+      <td class="td-num"><span class="${c.progCRF<c.progMDO-1?'delta-neg':'delta-neu'}">${deltaSignPct(c.progMDO)}</span></td>
+      <td class="td-num"><span class="${deltaClass(c.gap)}">${c.gap>=0?'+':''}${fmt(c.gap,1)}</span></td>
+    </tr>`;
+  }).join('');
+
+  // marcas con peor performance
+  const marcaAgg = {};
+  provRows.forEach(r => {
+    const k = r[COL.marca]||'S/D';
+    if(!marcaAgg[k]) marcaAgg[k]={crfAnt:0,crfAct:0,mdoAnt:0,mdoAct:0};
+    marcaAgg[k].crfAnt += n(r[COL.crfAnt]);
+    marcaAgg[k].crfAct += n(r[COL.crfAct]);
+    marcaAgg[k].mdoAnt += n(r[COL.mdoAnt]);
+    marcaAgg[k].mdoAct += n(r[COL.mdoAct]);
+  });
+  const marcas = Object.entries(marcaAgg).map(([m,a]) => ({
+    marca:m,
+    share:pct(a.crfAct,a.mdoAct),
+    shareAnt:pct(a.crfAnt,a.mdoAnt),
+    dif:pct(a.crfAct,a.mdoAct)-pct(a.crfAnt,a.mdoAnt),
+    progCRF:pct(a.crfAct-a.crfAnt,a.crfAnt),
+    progMDO:pct(a.mdoAct-a.mdoAnt,a.mdoAnt)
+  })).filter(x=>x.dif<-0.3).sort((a,b)=>a.dif-b.dif).slice(0,6);
+
+  if(marcas.length>0) {
+    document.getElementById('modal-marcas-section').style.display='block';
+    document.getElementById('modal-marcas').innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px">` +
+      marcas.map(x=>`
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:160px">
+          <div style="font-weight:700;font-size:13px">${x.marca}</div>
+          <div style="color:var(--txt2);font-size:12px;margin-top:4px">Share: ${fmtPct(x.share,1)} <span class="delta-neg">(${fmtPp(x.dif)})</span></div>
+          <div style="font-size:11px;color:var(--txt3)">CRF ${deltaSignPct(x.progCRF)} vs MDO ${deltaSignPct(x.progMDO)}</div>
+        </div>
+      `).join('')+`</div>`;
+  } else {
+    document.getElementById('modal-marcas-section').style.display='none';
+  }
+
+  document.getElementById('modal-slide-btn').onclick = () => openSlide(provName);
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+// ─── SLIDE ───────────────────────────────────────────────────────────────────
+function openSlide(provName) {
+  CURRENT_PROV = provName;
+  const allRows = getFiltered();
+  const provRows = allRows.filter(r => r[COL.gpoSR]===provName);
+  const totalAgg = aggRows(allRows);
+  const provAgg  = aggRows(provRows);
+  const m = calcMetrics(provAgg, totalAgg);
+  const catData = buildProviderCatData(provRows);
+  const worst3  = catData.filter(c=>c.semaforo!=='green').slice(0,3);
+
+  document.getElementById('slide-prov-name').textContent = provName;
+  document.getElementById('slide-period').textContent = `Período: ${STATE.mes} · Sección PAS`;
+  document.getElementById('slide-footer-date').textContent = new Date().toLocaleDateString('es-AR');
+
+  document.getElementById('slide-kpis').innerHTML = [
+    {label:'Share $ 2026', val:fmtPct(m.shareAct,1)},
+    {label:'Dif Share (pp)', val:(m.difShare>=0?'+':'')+fmt(m.difShare,1)+' pp'},
+    {label:'GAP vs Mercado', val:(m.gapMdo>=0?'+':'')+fmt(m.gapMdo,1)+' pp'}
+  ].map(k=>`
+    <div class="slide-kpi">
+      <div class="slide-kpi-val">${k.val}</div>
+      <div class="slide-kpi-lbl">${k.label}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('slide-tbody').innerHTML = (worst3.length?worst3:catData.slice(0,3)).map(c=>`
+    <tr>
+      <td>${c.cat}</td>
+      <td>${fmtPct(c.shareAnt,1)}</td>
+      <td>${fmtPct(c.shareAct,1)}</td>
+      <td style="color:${c.difShare<0?'#dc2626':'#059669'}">${fmtPp(c.difShare)}</td>
+      <td>${deltaSignPct(c.progCRF)}</td>
+      <td>${deltaSignPct(c.progMDO)}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('slide-insight-box').innerHTML = buildInsight(provName, m, catData, STATE.mes);
+  document.getElementById('slide-overlay').classList.add('open');
+}
+
+function closeSlide() { document.getElementById('slide-overlay').classList.remove('open'); }
+
+function exportSlidePDF() {
+  const el = document.getElementById('slide-box');
+  html2pdf().set({
+    margin:0, filename:`Slide_${CURRENT_PROV}_${STATE.mes}.pdf`,
+    image:{type:'jpeg',quality:.95},
+    html2canvas:{scale:2,useCORS:true},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+  }).from(el).save();
+}
+
+// ─── CSV EXPORT ──────────────────────────────────────────────────────────────
+function exportTableCSV(tableId, name) {
+  const tbl = document.getElementById(tableId);
+  const rows = [...tbl.querySelectorAll('tr')].map(tr =>
+    [...tr.querySelectorAll('th,td')].map(td=>'"'+(td.textContent.trim().replace(/"/g,'""'))+'"').join(',')
+  );
+  const blob = new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${name}_${STATE.mes}.csv`;
+  a.click();
+}
+
+// ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+function render() {
+  const rows = getFiltered();
+  const filteredRows = getFilteredFull();
+
+  // period badge
+  document.getElementById('h-period-badge').textContent = STATE.mes;
+
+  renderCards(filteredRows);
+
+  const catData  = buildCategoryData(filteredRows);
+  const provData = buildProviderData(filteredRows);
+
+  renderCategoryTable(catData);
+  renderProviderTable(provData);
+  renderMainChart(provData);
+
+  applySearchFilters();
+  updateSortIcons();
+}
+
+function toggleSortProv(col) {
+  if(STATE.sortColProv === col) {
+    STATE.sortDirProv *= -1;
+  } else {
+    STATE.sortColProv = col;
+    STATE.sortDirProv = -1;
+  }
+  render();
+}
+
+function updateSortIcons() {
+  const cols = ['prov','partRMMdo','partCRFMdo','gapMdo','shareAnt','shareAct','difShare','progCRF','progMDO','acumMDO','alertLevel'];
+  cols.forEach(c => {
+    const el = document.getElementById(`sort-prov-${c}`);
+    if(!el) return;
+    if(STATE.sortColProv === c) {
+      el.textContent = STATE.sortDirProv === 1 ? '↑' : '↓';
+      el.style.opacity = '1';
+    } else {
+      el.textContent = '';
+      el.style.opacity = '0.3';
+    }
+  });
+}
+
+let chartInstance = null;
+function renderMainChart(provData) {
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  const top = provData.slice(0, 8);
+  
+  if(chartInstance) chartInstance.destroy();
+  
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(p => p.prov),
+      datasets: [
+        {
+          label: 'Share Actual',
+          data: top.map(p => p.shareAct),
+          backgroundColor: '#6366f1',
+          borderRadius: 4
+        },
+        {
+          label: 'Share Anterior',
+          data: top.map(p => p.shareAnt),
+          backgroundColor: '#1e293b',
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Inter' } } }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#64748b', font: { family: 'Inter' } }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function attachSearchFilters() {
+  document.getElementById('search-cat').addEventListener('input', e => {
+    const term = e.target.value.toLowerCase();
+    const rows = document.getElementById('tbody-cat').querySelectorAll('tr:not(.empty-state)');
+    let count = 0;
+    rows.forEach(r => {
+      const text = r.querySelector('.td-cat').textContent.toLowerCase();
+      if(text.includes(term)) { r.style.display = ''; count++; }
+      else { r.style.display = 'none'; }
+    });
+  });
+
+  document.getElementById('search-prov').addEventListener('input', e => {
+    const term = e.target.value.toLowerCase();
+    const rows = document.getElementById('tbody-prov').querySelectorAll('tr:not(.empty-state)');
+    let count = 0;
+    rows.forEach(r => {
+      const text = r.querySelector('.td-cat').textContent.toLowerCase();
+      if(text.includes(term)) { r.style.display = ''; count++; }
+      else { r.style.display = 'none'; }
+    });
+  });
+}
+
+function applySearchFilters() {
+  document.getElementById('search-cat').dispatchEvent(new Event('input'));
+  document.getElementById('search-prov').dispatchEvent(new Event('input'));
+}
+
+// ─── FILE UPLOAD ──────────────────────────────────────────────────────────────
+async function loadFile(file) {
+  if(!file) return;
+  const dropZone = document.getElementById('drop-zone');
+  const progress = document.getElementById('upload-progress');
+  dropZone.style.display = 'none';
+  progress.style.display = 'flex';
+  document.getElementById('progress-text').textContent = 'Leyendo archivo...';
+
+  try {
+    RAW = await parseExcel(file);
+    document.getElementById('progress-text').textContent = `Procesando ${RAW.length.toLocaleString()} registros...`;
+    await new Promise(r=>setTimeout(r,200));
+
+    // check PAS data
+    const pasCount = RAW.filter(r=>r[COL.sec]==='PAS').length;
+    if(pasCount===0) throw new Error('No se encontraron datos para la sección PAS');
+
+    // update header
+    document.getElementById('h-archivo').textContent = file.name;
+    document.getElementById('h-fecha').textContent = `${pasCount.toLocaleString()} registros PAS`;
+
+    // default to YTD if available
+    const meses = [...new Set(RAW.filter(r=>r[COL.sec]==='PAS').map(r=>r[COL.mes]))];
+    STATE.mes = meses.includes('YTD') ? 'YTD' : meses[0];
+
+    populateFilters();
+    render();
+
+    // show app
+    document.getElementById('upload-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+
+  } catch(err) {
+    progress.style.display = 'none';
+    dropZone.style.display = 'block';
+    alert('Error al procesar el archivo:\n' + err);
+  }
+}
+
+// ─── EVENT LISTENERS ─────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  if(e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if(file && (file.name.endsWith('.xlsx')||file.name.endsWith('.xls')||file.name.endsWith('.csv'))) loadFile(file);
+  else alert('Por favor subí un archivo .xlsx, .xls o .csv');
+});
+
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') { closeModal(); closeSlide(); }
+});
+
+attachSearchFilters();
+</script>
+</body>
+</html>
