@@ -600,8 +600,14 @@ function parseExcel(file) {
     reader.onload = e => {
       try {
         const wb = XLSX.read(e.target.result, {type:'array'});
-        if(!wb.SheetNames.includes('Base')) { reject('No se encontró la hoja "Base"'); return; }
-        const ws = wb.Sheets['Base'];
+        // Busca 'Base' ignorando espacios y mayúsculas, si no lo encuentra usa la primera hoja disponible
+        let sheetName = wb.SheetNames.find(n => n.trim() === 'Base') || 
+                        wb.SheetNames.find(n => n.trim().toLowerCase() === 'base') ||
+                        wb.SheetNames[0];
+        
+        if(!sheetName) { reject('El archivo de Excel parece estar vacío'); return; }
+        
+        const ws = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, {defval:null});
         resolve(rows);
       } catch(err) { reject(err.message); }
