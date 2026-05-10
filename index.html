@@ -548,7 +548,7 @@ tbody td{padding:10px 14px;font-size:13px;white-space:nowrap}
 <script>
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
-const COL = {
+let COL = {
   canasta:'Canasta', cat:'Categoria', sec:'Sección', fab:'Fabricante',
   marca:'Marca', gpo:'Grupo Economico', gpoSR:'Grupo Economico Sin Resto',
   mes:'MES',
@@ -568,7 +568,23 @@ let STATE = {
 let CURRENT_PROV = null; // for slide/modal
 
 // ─── UTILS ──────────────────────────────────────────────────────────────────
-const n = v => (typeof v==='number' && isFinite(v)) ? v : 0;
+const n = v => {
+  if(typeof v==='number') return isFinite(v)?v:0;
+  if(typeof v==='string') {
+    let s = v.trim();
+    if(!s) return 0;
+    // Robust parsing for Argentine format (1.234.567,89)
+    // If it has both dot and comma, dot is thousands.
+    if(s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    // If it has only comma, it's the decimal separator
+    else if(s.includes(',')) s = s.replace(',','.');
+    // If it has only dot, we assume it's decimal (standard) or thousands?
+    // In Scentia CSVs, usually only dot means decimal if it's small, but we'll assume decimal.
+    let num = parseFloat(s);
+    return isFinite(num)?num:0;
+  }
+  return 0;
+};
 const safeDiv = (a,b) => (b!==0 && isFinite(b) && isFinite(a)) ? a/b : 0;
 const pct = (a,b) => safeDiv(a,b)*100;
 
@@ -615,6 +631,31 @@ function parseExcel(file) {
     reader.onerror = () => reject('Error al leer el archivo');
     reader.readAsArrayBuffer(file);
   });
+}
+
+function mapColumns(rows) {
+  if(!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const norm = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g,'');
+  
+  const targets = {
+    canasta:'canasta', cat:'categoria', sec:'seccion', fab:'fabricante',
+    marca:'marca', gpo:'grupoeconomico', gpoSR:'grupoeconomicosinresto', mes:'mes',
+    crfAnt:['crf','anterior'], mdoAnt:['mdo','anterior'], 
+    crfAct:['crf','actual'], mdoAct:['mdo','actual'],
+    vcrfAnt:['vol','crf','anterior'], vmdoAnt:['vol','mdo','anterior'],
+    vcrfAct:['vol','crf','actual'], vmdoAct:['vol','mdo','actual']
+  };
+
+  for(let id in targets) {
+    const t = targets[id];
+    const found = keys.find(k => {
+      const nk = norm(k);
+      if(Array.isArray(t)) return t.every(word => nk.includes(word));
+      return nk.includes(t);
+    });
+    if(found) COL[id] = found;
+  }
 }
 
 // ─── FILTER DATA ────────────────────────────────────────────────────────────
@@ -1259,6 +1300,8 @@ async function loadFile(file) {
 
   try {
     RAW = await parseExcel(file);
+    mapColumns(RAW);
+    
     document.getElementById('progress-text').textContent = `Procesando ${RAW.length.toLocaleString()} registros...`;
     await new Promise(r=>setTimeout(r,200));
 
