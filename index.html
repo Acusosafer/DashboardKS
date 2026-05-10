@@ -573,13 +573,9 @@ const n = v => {
   if(typeof v==='string') {
     let s = v.trim();
     if(!s) return 0;
-    // Robust parsing for Argentine format (1.234.567,89)
-    // If it has both dot and comma, dot is thousands.
-    if(s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
-    // If it has only comma, it's the decimal separator
-    else if(s.includes(',')) s = s.replace(',','.');
-    // If it has only dot, we assume it's decimal (standard) or thousands?
-    // In Scentia CSVs, usually only dot means decimal if it's small, but we'll assume decimal.
+    // Para Argentina: el punto es separador de miles, la coma de decimales.
+    // Si viene como string, quitamos TODOS los puntos y cambiamos la coma por punto.
+    s = s.replace(/\./g, '').replace(',', '.');
     let num = parseFloat(s);
     return isFinite(num)?num:0;
   }
@@ -639,20 +635,21 @@ function mapColumns(rows) {
   const norm = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g,'');
   
   const targets = {
-    canasta:'canasta', cat:'categoria', sec:'seccion', fab:'fabricante',
-    marca:'marca', gpo:'grupoeconomico', gpoSR:'grupoeconomicosinresto', mes:'mes',
-    crfAnt:['crf','anterior'], mdoAnt:['mdo','anterior'], 
-    crfAct:['crf','actual'], mdoAct:['mdo','actual'],
-    vcrfAnt:['vol','crf','anterior'], vmdoAnt:['vol','mdo','anterior'],
-    vcrfAct:['vol','crf','actual'], vmdoAct:['vol','mdo','actual']
+    canasta: { inc: ['canasta'] }, cat: { inc: ['categoria'] }, sec: { inc: ['seccion'] }, fab: { inc: ['fabricante'] },
+    marca: { inc: ['marca'] }, gpo: { inc: ['grupoeconomico'] }, gpoSR: { inc: ['grupoeconomicosinresto'] }, mes: { inc: ['mes'] },
+    crfAnt: { inc: ['crf','anterior'], exc: ['vol'] }, mdoAnt: { inc: ['mdo','anterior'], exc: ['vol'] }, 
+    crfAct: { inc: ['crf','actual'], exc: ['vol'] }, mdoAct: { inc: ['mdo','actual'], exc: ['vol'] },
+    vcrfAnt: { inc: ['vol','crf','anterior'] }, vmdoAnt: { inc: ['vol','mdo','anterior'] },
+    vcrfAct: { inc: ['vol','crf','actual'] }, vmdoAct: { inc: ['vol','mdo','actual'] }
   };
 
   for(let id in targets) {
-    const t = targets[id];
+    const rules = targets[id];
     const found = keys.find(k => {
       const nk = norm(k);
-      if(Array.isArray(t)) return t.every(word => nk.includes(word));
-      return nk.includes(t);
+      const hasAllInc = rules.inc.every(word => nk.includes(word));
+      const hasExc = rules.exc ? rules.exc.some(word => nk.includes(word)) : false;
+      return hasAllInc && !hasExc;
     });
     if(found) COL[id] = found;
   }
